@@ -20,6 +20,14 @@ mcopy([{src: '/path/to/source.file', dest: '/path/to/destination.file'}, ...], (
   if (err) console.log('Boo!');
   else console.log('Paw!');
 });
+
+mcopy('/path/to/source/dir/**', '/path/to/dest/dir', (err) => {});
+
+mcopy(['/path/to/source/file', ...], '/path/to/dest/dir', (err) => {});
+
+mcopy([{src: '/path/to/source/file', dest: '/path/to/dest/file'}, ...], (err) => {});
+
+
 ```
 If you like events more than callbacks, it'll emit some for you:
 ```
@@ -66,10 +74,20 @@ Obviously, you should still drop in a callback function or hook up to events in 
 #### autoStart (NOT IMPLEMENTED YET!)
 Default: ``true``. Determines whether the copying will start automatically. When set to ``false`` will start paused. Copying may be started by calling ``mcopy.resume()``.
 
+#### failOnError
+Default: ``true``. If set to ``false`` you may get one or more ``error`` callback, but the copying will carry on.
+
+#### highWaterMark
+Default: ``4194304``, that is 4 megs. Read stream buffer size, in bytes. Affects how many ``progress`` events the thing emits.
+
+#### parallel
+Default: ``1``. Parallel copying threads. Haven't done any testing here yet (will do at some point) but I'm fairly certain that having more than 1 parallel threads will actually make copying slower since sequential read/write is faster than random on any physical disc, even SSD. So use at your own risk.
+
 ### Events
 
 #### ``.on('progress', (progress) => {...})``
-Emitted every time a file finished copying or ``highWaterMark`` bytes copied over. ``progress`` argument is an object of the following structure:
+Emitted every time a file finished copying or ``highWaterMark`` bytes copied over. ``progress`` argument is an object with the following properties:
+*
 ```
 {
   filesCopied: <int>,
