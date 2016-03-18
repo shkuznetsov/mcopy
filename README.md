@@ -27,6 +27,14 @@ mcopy(['/path/to/source/file', ...], '/path/to/dest/dir', (err) => {});
 
 mcopy([{src: '/path/to/source/file', dest: '/path/to/dest/file'}, ...], (err) => {});
 
+mcopy([{src: '/path/to/source/file', dest: '/path/to/dest/dir/'}, ...], (err) => {});
+
+// Below only makes sense if /path/to/dest/dir exists and is a directory
+// If it doesn't exist, mcopy will assume it's a file path
+// If it does exist and is a file, mcopy will either fail or overwrite the file
+// depending on destOverwrite option value
+mcopy([{src: '/path/to/source/file', dest: '/path/to/dest/dir'}, ...], (err) => {});
+
 
 ```
 If you like events more than callbacks, it'll emit some for you:
