@@ -1,20 +1,20 @@
 var EventEmitter = require('events'),
+    machinegun = require('../machinegun/index.js'),
     fs = require('fs');
-    defaults = require('defaults');
 
 module.exports = function () {
-	// This is going to be returned
-	var emitter = new EventEmitter();
 
-	var i = 0, paths = [], opt = {}, callback = null;
+	var emitter = new EventEmitter()
+	    filesArg, globArg, destDir, optArg, callbackArg,
+	    i = 0;
 
-	if (Array.isArray(arguments[i])) paths = arguments[i++];
-	if (typeof arguments[i] == 'object') opt = arguments[i++];
-	if (typeof arguments[i] == 'function') callback = arguments[i];
+	if (Array.isArray(arguments[i])) filesArg = arguments[i++];
+	else if (typeof arguments[i] == 'string') globArg = arguments[i++];
+	if (typeof arguments[i] == 'string') destDir = arguments[i++];
+	if (typeof arguments[i] == 'object') optArg = arguments[i++];
+	if (typeof arguments[i] == 'function') callbackArg = arguments[i];
 
-	if (!paths.length && Array.isArray(opt.files)) paths = opt.files;
-
-	opt = defaults(opt, {
+	var opt = defaults(optArg, {
 		srcDelete: false,
 		destCreateDir: true,
 		destOverwrite: false,
@@ -24,16 +24,56 @@ module.exports = function () {
 		highWaterMark: 4194304 // 4M
 	});
 
+	if (!filesArg && Array.isArray(opt.files)) filesArg = opt.files;
+	if (!globArg && typeof opt.glob == 'string') globArg = opt.glob;
+	if (!destDir && typeof opt.dest == 'string') destDir = opt.dest;
+
 	// Start asynchronously to allow attachment of event handlers
 	process.nextTick(function () {
 
-		var files = [],
-		    filesCopied = 0,
-		    filesTotal = paths.length,
+		var filesCopied = 0,
+		    filesTotal = 0,
 		    bytesCopied = 0,
 		    bytesTotal = 0,
-		    running = filesTotal,
+		    running = 0,
 			error = null;
+
+		var File = function (arg) {
+			this.arg = arg;
+			if (typeof arg == 'object') {
+				this.src = arg.src;
+				this.dest = arg.dest;
+			}
+			if (typeof this.dest != 'string') this.dest = destDir;
+			this.setPaths = function (src, dest) {
+				if (typeof src == 'string') this.src = src;
+				if (typeof dest == 'string') this.dest = dest;
+			};
+
+			this.state = 'unstarted';
+
+			files.push(this);
+		};
+
+		var resolveGlob = function () {
+			var globber = require('glob');
+			var globOpt = defaults(opt.globOpt, {nodir: true, silent: true});
+
+			globber(globArg, globOpt, function (err, files) {
+				var globBase = require('glob-parent')(globArg);
+				// TODO: handle error
+				files.map(function (file) {
+					new File(null, file, path.join(destDir, path.relative(globBase, path)));
+				});
+				// TODO: pass it on
+			});
+		};
+
+		var registerFiles = function () {
+			filesArg.map(function (file) {
+				new File(file);
+			});
+		}
 
 		var stat = function () {
 			for (var i = 0; i < filesTotal; ++i) {
@@ -96,6 +136,7 @@ module.exports = function () {
 			} else if (!st.isFile()) {
 				emitError(new Error(file.paths.src + " is not a file"), file);
 			} else {
+				emitter.emit('stat', file, st);
 				file.bytesCopied = 0;
 				file.bytesTotal = st.size;
 				bytesTotal += st.size;
@@ -146,10 +187,10 @@ module.exports = function () {
 			}
 		};
 
+
 		// Ignite the process
-		if (filesTotal) stat();
-		// Or complete immediately if there's nothing to do
-		else complete();
+		if ()
+
 	});
 
 	return emitter;
