@@ -1,197 +1,205 @@
-var EventEmitter = require('events'),
-    machinegun = require('../machinegun/index.js'),
-    fs = require('fs');
+'use strict';
+
+var fs = require('fs'),
+	path = require('path'),
+	mkdirp = require('mkdirp'),
+	glob = require('glob'),
+    globParent = require('glob-parent'),
+    isGlob = require('is-glob'),
+    defaults = require('defaults'),
+    Machinegun = require('machinegun'),
+    ProgressEmitter = require('./lib/ProgressEmitter.js');
 
 module.exports = function () {
 
-	var emitter = new EventEmitter()
-	    filesArg, globArg, destDir, optArg, callbackArg,
-	    i = 0;
+	const emitter = new ProgressEmitter();
+
+	let filesArg, // Input array of file descriptor objects
+		destArg, // Directory to copy files to
+		optArg, // Options object
+		callbackArg, // Callback function
+		i = 0, files = [];
 
 	if (Array.isArray(arguments[i])) filesArg = arguments[i++];
-	else if (typeof arguments[i] == 'string') globArg = arguments[i++];
-	if (typeof arguments[i] == 'string') destDir = arguments[i++];
+	else if (typeof arguments[i] == 'string') filesArg = [arguments[i++]];
+	if (typeof arguments[i] == 'string') destArg = arguments[i++];
 	if (typeof arguments[i] == 'object') optArg = arguments[i++];
 	if (typeof arguments[i] == 'function') callbackArg = arguments[i];
 
-	var opt = defaults(optArg, {
-		srcDelete: false,
-		destCreateDir: true,
-		destOverwrite: false,
+	const opt = defaults(optArg, {
+		files: filesArg,
+		dest: destArg,
+		callback: callbackArg,
+		deleteSource: false,
+		createDir: true,
+		overwrite: false,
 		failOnError: true,
 		autoStart: true,
 		parallel: 1,
-		highWaterMark: 4194304 // 4M
+		highWaterMark: 4194304, // 4M
+		globOpt: {}
 	});
 
-	if (!filesArg && Array.isArray(opt.files)) filesArg = opt.files;
-	if (!globArg && typeof opt.glob == 'string') globArg = opt.glob;
-	if (!destDir && typeof opt.dest == 'string') destDir = opt.dest;
+	opt.globOpt = defaults(opt.globOpt, {silent: true});
+	opt.globOpt.nodir = true;
 
-	// Start asynchronously to allow attachment of event handlers
-	process.nextTick(function () {
-
-		var filesCopied = 0,
-		    filesTotal = 0,
-		    bytesCopied = 0,
-		    bytesTotal = 0,
-		    running = 0,
-			error = null;
-
-		var File = function (arg) {
+	class File {
+		constructor (src, dest, base, arg) {
+			this.src = src;
+			this.dest = dest;
+			this.base = base;
 			this.arg = arg;
-			if (typeof arg == 'object') {
-				this.src = arg.src;
-				this.dest = arg.dest;
+			// Defaults
+			this.error = null;
+			this.stats = null;
+			this.progress = 0;
+		}
+
+		static createFromArgument(file) {
+			let src, dest;
+			if (typeof file == 'string') {
+				src = file;
+				dest = destArg;
 			}
-			if (typeof this.dest != 'string') this.dest = destDir;
-			this.setPaths = function (src, dest) {
-				if (typeof src == 'string') this.src = src;
-				if (typeof dest == 'string') this.dest = dest;
-			};
+			else if (typeof file == 'object') {
+				src = file.src;
+				dest = file.dest || opt.dest;
+			}
+			if (typeof src != 'string') throw TypeError(src + " is not a string (src)");
+			return new File(src, dest, opt.base || globParent(src), file);
+		}
 
-			this.state = 'unstarted';
-
-			files.push(this);
-		};
-
-		var resolveGlob = function () {
-			var globber = require('glob');
-			var globOpt = defaults(opt.globOpt, {nodir: true, silent: true});
-
-			globber(globArg, globOpt, function (err, files) {
-				var globBase = require('glob-parent')(globArg);
-				// TODO: handle error
-				files.map(function (file) {
-					new File(null, file, path.join(destDir, path.relative(globBase, path)));
+		resolveGlob () {
+			return new Promise((resolve, reject) => {
+				if (!isGlob(this.src)) resolve([this]);
+				else glob(this.src, opt.globOpt, (err, paths) => {
+					if (err) resolve(this.onError(err));
+					else {
+						const files = [];
+						paths.forEach((path) => files.push(new File(path, this.dest, this.base, this.arg)));
+						resolve(files);
+					}
 				});
-				// TODO: pass it on
-			});
-		};
-
-		var registerFiles = function () {
-			filesArg.map(function (file) {
-				new File(file);
 			});
 		}
 
-		var stat = function () {
-			for (var i = 0; i < filesTotal; ++i) {
-				files[i] = {
-					paths: paths[i],
-					state: 'unstarted'
-				};
-				fs.stat(files[i].paths.src, statCallback.bind(null, files[i]));
+		onError(err) {
+			// Error should only be emitted once per errored file
+			if (!this.error) {
+				this.error = (typeof err == 'string') ? new Error(err) : err;
+				emitter.emit('error', this.error, this);
 			}
-		};
+			return opt.failOnError ? Promise.reject(this.err) : Promise.resolve();
+		}
 
-		var copy = function () {
-			for (var i = 0; i < filesTotal && running < opt.parallel; ++i) {
-				var file = files[i];
-				if (file.state == 'unstarted') {
-					file.read = fs.createReadStream(file.paths.src, {highWaterMark: opt.highWaterMark})
-						.on('data', copyOnData.bind(null, file))
-						.on('error', copyOnError.bind(null, file));
-					file.write = fs.createWriteStream(file.paths.dest)
-						.on('error', copyOnError.bind(null, file))
-						.on('finish', copyOnFinish.bind(null, file));
-					file.read.pipe(file.write);
-					file.state = 'copying';
-					running++;
+		stat() {
+			return new Promise((resolve) => fs.stat(this.src, (err, stats) => {
+				if (err) resolve(this.onError(err));
+				else if (!stats.isFile()) resolve(this.onError(this.src + " is not a file (src)"));
+				else {
+					this.stats = stats;
+					emitter.registerFile(stats.size);
+					emitter.emit('stats', this);
+					resolve(this);
 				}
-			}
+			}));
+		}
 
-			if (!running) complete();
-		};
-
-		var complete = function () {
-			if (!error) emitter.emit('success');
-			emitter.emit('complete', error);
-			if (callback) callback(error);
-		};
-
-		var emitError = function (err, file) {
-			if (file) file.state = 'errored';
-			if (!error || !opt.failOnError) {
-				if (emitter.listeners('error').length) emitter.emit('error', err, file ? file.paths : null);
-				error = err;
-			}
-		};
-
-		var emitProgress = function (file) {
-			emitter.emit('progress', {
-				filesCopied: filesCopied,
-				filesTotal: filesTotal,
-				bytesCopied: bytesCopied,
-				bytesTotal: bytesTotal,
-				file: file.paths,
-				fileBytesCopied: file.bytesCopied,
-				fileBytesTotal: file.bytesTotal
+		prepareDestination() {
+			return new Promise((resolve) => {
+				if (typeof this.dest == 'function') this.dest = this.dest(this);
+				if (typeof this.dest != 'string') resolve(this.onError(this.dest + " is not a string (dest)"));
+				else fs.stat(this.dest, (err, stats) => {
+					if (err && err.code != 'ENOENT') resolve(this.onError(this.dest + " is not accessible (dest)"));
+					else {
+						if ((err && this.dest.slice(-1) == '/') || (!err && stats.isDirectory())) {
+							this.dest = path.join(this.dest, path.relative(this.base, this.src));
+						}
+						mkdirp(path.dirname(this.dest), (err) => {
+							if (err) resolve(this.onError(err));
+							else resolve(this);
+						});
+					}
+				});
 			});
-		};
+		}
 
-		var statCallback = function (file, err, st) {
-			if (err) {
-				emitError(err, file);
-			} else if (!st.isFile()) {
-				emitError(new Error(file.paths.src + " is not a file"), file);
-			} else {
-				emitter.emit('stat', file, st);
-				file.bytesCopied = 0;
-				file.bytesTotal = st.size;
-				bytesTotal += st.size;
-			}
+		copy() {
+			return new Promise((resolve) => {
+				// Create streams
+				this.read = fs.createReadStream(this.src, {highWaterMark: opt.highWaterMark});
+				this.write = fs.createWriteStream(this.dest);
+				// Attach events
+				this.read.on('data', (chunk) => {
+					this.progress += chunk.length;
+					if (this.stats.size > this.progress) emitter.incBytesCopied(chunk.length);
+				});
+				this.read.on('error', (err) => resolve(this.onError(err)));
+				this.write.on('error', (err) => resolve(this.onError(err)));
+				this.write.on('finish', () => {
+					emitter.incFilesCopied(this);
+					resolve(this)}
+				);
+				// Abort copying if error occurs and failOnError is true
+				if (opt.failOnError) emitter.on('error', () => this.abort());
+				// Pipe streams
+				this.read.pipe(this.write);
+			});
+		}
 
-			if (!--running) {
-				if (!error || !opt.failOnError) copy();
-				else complete();
-			}
-		};
+		deleteSource() {
+			console.log(this.src);
+			return new Promise((resolve) => fs.unlink(this.src, (err) => {
+				if (err) resolve(this.onError(err));
+				else resolve(this);
+			}));
+		}
 
-		var copyOnData = function (file, chunk) {
-			//console.log('copyOnData');
-			bytesCopied += chunk.length;
-			file.bytesCopied += chunk.length;
-			emitProgress(file);
-		};
+		abort() {
+			this.read.removeAllListeners();
+			this.write.removeAllListeners();
+			this.read.unpipe();
+			this.write.end();
+		}
+	}
 
-		var copyOnFinish = function (file) {
-			//console.log('copyOnFinish');
-			running--;
-			filesCopied++;
-			file.state = 'succeeded';
-			emitProgress(file);
-			copy();
-		};
+	const resolveGlobs = (files) => Promise
+		.all(files.map((file) => file.resolveGlob()))
+		.then((files) => [].concat.apply([], files.filter((file) => !!file)));
 
-		var copyOnError = function (file, err) {
-			//console.log('copyOnError');
-			running--;
-			file.state = 'errored';
-			emitError(err, file);
-			if (opt.failOnError) cleanAllRunning();
-			else copy();
-		};
+	const statFiles = (files) => Promise
+		.all(files.map((file) => file.stat()))
+		.then((files) => files.filter((file) => !!file));
 
-		var cleanAllRunning = function () {
-			for (var i = 0; i < filesTotal; ++i) {
-				var file = files[i];
-				if (file.state == 'copying') {
-					file.read.removeAllListeners();
-					file.write.removeAllListeners();
-					file.read.unpipe();
-					file.write.end();
-					//TODO: Remove destination file
-					running--;
-				}
-			}
-		};
+	const copyFiles = (files) => {
+		const mg = new Machinegun({
+			giveUpOnError: opt.failOnError,
+			barrels: opt.parallel
+		});
+		files.forEach((file) => mg.load((cb) => {
+			mg.on('giveUp', () => file.abort());
+			return file.prepareDestination()
+				.then((file) => file ? file.copy() : null)
+				.then((file) => (file && opt.deleteSource) ? file.deleteSource() : null);
+		}));
+		return mg.promise();
+	}
 
+	const reportDone = () => {
+		console.log('!!!');
+	};
 
-		// Ignite the process
-		if ()
+	const reportError = (err) => {
+		console.error(err);
+	};
 
-	});
+	files = opt.files.map((file) => File.createFromArgument(file));
+
+	resolveGlobs(files)
+		.then(statFiles)
+		.then(copyFiles)
+		.then(reportDone)
+		.catch(reportError);
 
 	return emitter;
 };
