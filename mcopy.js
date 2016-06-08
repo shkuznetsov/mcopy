@@ -7,9 +7,11 @@ const defaults = require('defaults'),
 
 module.exports = function () {
 
-	let opt;
+	let opt, errored;
 
 	const emitter = new ProgressEmitter();
+
+	emitter.on('error', () => { errored = true });
 
 	const parseInput = (args) => new Promise((resolve, reject) => {
 		let filesArg, // Input array of file descriptor objects
@@ -69,20 +71,18 @@ module.exports = function () {
 		return mg.promise();
 	}
 
-	const reportDone = () => {
-		console.log('!!!');
-	};
-
-	const reportError = (err) => {
-		console.error(err);
+	const reportComplete = (err) => {
+		if (err) emitter.emit('error', err);
+		if (!errored) emitter.emit('success');
+		emitter.emit('complete');
+		if (typeof opt.callback == 'function') opt.callback(err);
 	};
 
 	parseInput(arguments)
 		.then(resolveGlobs)
 		.then(statFiles)
 		.then(copyFiles)
-		.then(reportDone)
-		.catch(reportError);
+		.then(reportComplete, reportComplete);
 
 	return emitter;
 };
