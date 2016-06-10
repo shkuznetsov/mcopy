@@ -90,7 +90,6 @@ describe('mcopy', function()
 
 	it("should fail to copy files and and emit 'error' event with 'Error' argument", function(done) {
 		mcopy(badFiles).on('error', function(err) {
-			console.log('-', err);
 			expect(err).to.be.an.instanceof(Error);
 			done();
 		});
@@ -101,21 +100,17 @@ describe('mcopy', function()
 	});
 
 	it("should respect 'highWaterMark' option and emit 'progress' events", function(done) {
-		var highWaterMark = 10,
-		    progressHistory = [],
-		    errored = false;
-		mcopy(files, {highWaterMark: highWaterMark})
+		var highWaterMark = 50,
+		    pastProgress = 0,
+		    maxDelta = 0;
+		mcopy(files, {highWaterMark: highWaterMark, parallel: 1})
 			.on('progress', function(progress, file) {
-			/*	if ((!progressHistory[file.arg.index] && progress.bytesCopied == highWaterMark) ||
-					progress.bytesCopied == progressHistory[file.arg.index] + highWaterMark ||
-					progress.bytesCopied == progress.bytesTotal) {
-					progressHistory[file.arg.index] = progress.bytesCopied;
-				} else {
-					errored = true;
-				}*/
+				var delta = progress.bytesCopied - pastProgress;
+				pastProgress = progress.bytesCopied;
+				if (delta > maxDelta) maxDelta = delta;
 			})
 			.on('complete', function(err) {
-				done(err || (errored ? new Error("Progress sequence violation") : null));
+				done(err || (maxDelta != highWaterMark ? new Error("Wrong progress increment") : null));
 			});
 	});
 
