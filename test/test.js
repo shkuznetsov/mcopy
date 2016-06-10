@@ -99,6 +99,16 @@ describe('mcopy', function()
 		mcopy(badFiles).on('complete', done);
 	});
 
+	it("should copy files using single glob argument", function(done) {
+		mcopy(srcDir + "**", destDir, function(err) {
+			for (var i = 0; i < filesCount; i++) {
+				expect(files[i].dest).to.be.a.file();
+				expect(files[i].dest).to.have.content(files[i].content);
+			}
+			done(err);
+		});
+	});
+
 	it("should respect 'highWaterMark' option and emit 'progress' events", function(done) {
 		var highWaterMark = 50,
 		    pastProgress = 0,
@@ -113,6 +123,7 @@ describe('mcopy', function()
 				done(err || (maxDelta != highWaterMark ? new Error("Wrong progress increment") : null));
 			});
 	});
+
 
 });
 /*
