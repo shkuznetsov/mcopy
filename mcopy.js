@@ -1,13 +1,13 @@
 'use strict';
 
 const defaults = require('defaults'),
-    Machinegun = require('machinegun'),
+    Machinegun = require('../machinegun/index.js'),
     File = require('./lib/File.js'),
     ProgressEmitter = require('./lib/ProgressEmitter.js');
 
 module.exports = function () {
 
-	let opt, errored;
+	let opt, mg, errored;
 
 	const emitter = new ProgressEmitter();
 
