@@ -82,7 +82,7 @@ describe('mcopy', function()
 	});
 
 	it("should fail to copy files and call explicit callback with 'Error' argument", function(done) {
-		mcopy(badFiles, function(err) {
+		mcopy(badFiles, {failOnError: true}, function(err) {
 			expect(err).to.be.an.instanceof(Error);
 			done();
 		});

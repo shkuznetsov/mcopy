@@ -72,8 +72,8 @@ module.exports = function () {
 	}
 
 	const reportComplete = (err) => {
-		if (err) emitter.emit('error', err);
-		if (!errored) emitter.emit('success');
+		if (err && emitter.listenerCount('error')) emitter.emit('error', err);
+		if (!errored && !err) emitter.emit('success');
 		emitter.emit('complete');
 		if (typeof opt.callback == 'function') opt.callback(err);
 	};
