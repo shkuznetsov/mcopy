@@ -48,28 +48,29 @@ module.exports = function () {
 		resolve(files);
 	});
 
-	const resolveGlobs = (files) => Promise
-		.all(files.map((file) => file.resolveGlob()))
-		.then((files) => [].concat.apply([], files.filter((file) => file)));
+	const resolveGlobs = (inputFiles) => {
+		const resolvedFiles = [];
+		inputFiles.forEach((file) => mg.load(() => file.resolveGlob().then((files) => Array.prototype.push.apply(resolvedFiles, files))));
+		return mg.fire().promise(resolvedFiles);
+	};
 
-	const statFiles = (files) => Promise
-		.all(files.map((file) => file.stat()))
-		.then((files) => files.filter((file) => file && !file.skip));
+	const statFiles = (inputFiles) => {
+		const statFiles = [];
+		inputFiles.forEach((file) => mg.load(() => file.stat().then((file) => statFiles.push(file))));
+		return mg.fire().promise(statFiles);
+	};
 
-	const copyFiles = (files) => {
-		if (!files.length) return Promise.resolve();
-		const mg = new Machinegun({
-			giveUpOnError: opt.failOnError,
-			barrels: opt.parallel
-		});
-		files.forEach((file) => mg.load((cb) => {
+	const copyFiles = (inputFiles) => {
+		inputFiles.forEach((file) => mg.load(() => {
+			let promise = file.prepareDestination().then((file) => file.copy());
+			// Add deletion to the promise chain only if opt.deleteSource is truthy
+			if (opt.deleteSource) promise = promise.then((file) => file.deleteSource());
+			// Abort copying if the whole machinegun gives up
 			mg.on('giveUp', () => file.abort());
-			return file.prepareDestination()
-				.then((file) => file ? file.copy() : null)
-				.then((file) => (file && opt.deleteSource) ? file.deleteSource() : null);
+			return promise;
 		}));
-		return mg.promise();
-	}
+		return mg.fire().promise();
+	};
 
 	const reportComplete = (err) => {
 		if (err && emitter.listenerCount('error')) emitter.emit('error', err);
