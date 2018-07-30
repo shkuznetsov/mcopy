@@ -9,10 +9,11 @@ module.exports = function () {
 
 	let opt, mg, errored;
 
+	// This will be returned
 	const emitter = new ProgressEmitter();
 
-	emitter.on('error', () => { errored = true });
-
+	// Parses input, initialises machinegun
+	// Returns a promise for a list of File objects
 	const parseInput = (args) => new Promise((resolve, reject) => {
 		let filesArg, // Input array of file descriptor objects
 			destArg, // Directory to copy files to
@@ -43,9 +44,21 @@ module.exports = function () {
 		opt.globOpt = defaults(opt.globOpt, {silent: true});
 		opt.globOpt.nodir = true;
 
-		files = opt.files.map((file) => File.createFromArgument(file, opt, emitter));
+		mg = new Machinegun({
+			barrels: opt.parallel,
+			giveUpOnError: opt.failOnError,
+			ceaseFireOnEmpty: true,
+			fireImmediately: false
+		});
 
-		resolve(files);
+		mg.on('error', (err) => {
+			if (!opt.failOnError) {
+				emitter.emit('error', err);
+				errored = true;
+			}
+		});
+
+		resolve(opt.files.map((file) => File.createFromArgument(file, opt, emitter)));
 	});
 
 	const resolveGlobs = (inputFiles) => {

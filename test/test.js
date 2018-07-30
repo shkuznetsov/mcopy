@@ -99,6 +99,13 @@ describe('mcopy', function()
 		mcopy(badFiles).on('complete', done);
 	});
 
+	it("should fail to copy files if createDir is falsy", function(done) {
+		mcopy(files, {createDir: false}, function(err) {
+			expect(err).to.be.an.instanceof(Error);
+			done();
+		});
+	});
+
 	it("should copy files using single glob argument", function(done) {
 		mcopy(srcDir + "**", destDir, function(err) {
 			for (var i = 0; i < filesCount; i++) {
@@ -123,8 +130,6 @@ describe('mcopy', function()
 				done(err || (maxDelta != highWaterMark ? new Error("Wrong progress increment") : null));
 			});
 	});
-
-
 });
 /*
 should error if src is not a string
