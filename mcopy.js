@@ -3,29 +3,21 @@
 const defaults = require('defaults'),
     Machinegun = require('../machinegun/index.js'),
     File = require('./lib/File.js'),
-    ProgressEmitter = require('./lib/ProgressEmitter.js');
+    ProgressEmitter = require('./lib/ProgressEmitter'),
+	parseArguments = require('./lib/parseArguments');
 
 module.exports = function () {
 
-	let opt, mg, errored;
+	let mg, errored;
 
 	// This will be returned
 	const emitter = new ProgressEmitter();
 
-	// Parses input, initialises machinegun
-	// Returns a promise for a list of File objects
-	const parseInput = (args) => new Promise((resolve, reject) => {
-		let filesArg, // Input array of file descriptor objects
-			destArg, // Directory to copy files to
-			optArg, // Options object
-			callbackArg, // Callback function
-			i = 0, files = [];
+	// Parse and sanitise inputs
+	let {jobs, opt, callback} = parseArguments(arguments);
 
-		if (Array.isArray(args[i])) filesArg = args[i++];
-		else if (typeof args[i] == 'string') filesArg = [args[i++]];
-		if (typeof args[i] == 'string') destArg = args[i++];
-		if (typeof args[i] == 'object') optArg = args[i++];
-		if (typeof args[i] == 'function') callbackArg = args[i];
+
+
 
 		opt = defaults(optArg, {
 			files: filesArg,
