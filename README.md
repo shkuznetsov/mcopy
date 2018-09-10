@@ -1,19 +1,55 @@
 **This documentation is very much work in progress still, please be patient and forgive me my laziness!**
 
 # mcopy
-Copy multiple files with streams, progress events for larger files, parallel execution and a panda.
+Copies multiple files with globs, streams, progress events, parallel execution and a panda.
 
-## Usage
-### Installing it
-It's as standard as can be. To install the plugin add it to your project's ``package.json`` dependencies or install manually running:
+## Basic usage
+Add it to your project's dependencies:
 ```
-npm install mcopy
+npm install mcopy --save
 ```
-Then pull it into your code:
+Pull it into your code:
 ```javascript
-var mcopy = require('mcopy');
+const mcopy = require('mcopy');
 ```
-### Running it
+Run it:
+```javascript
+mcopy('/path/to/source/dir/**', '/path/to/dest/dir', (err) => {
+    if (err) console.log('Boo!');
+    else console.log('Paw!');
+});
+```
+
+## Not-so-basic usage
+
+Single copy job syntax:
+```javascript
+// Shorthand
+mcopy(<source>, <destination>, {...<options>}, <callback>)
+// Verbose
+mcopy({"src": <source>, "dest": <destination>, ...<options>}, <callback>)
+```
+
+Multiple copy jobs syntax:
+```javascript
+// Shorthand
+mcopy([[<source>, <destination>, {...<jobOptions>}], ...], {...<globalOptions>}, <callback>)
+// Verbose
+mcopy([{"src": <source>, "dest": <destination>, ...<jobOptions>}, ...], {...<globalOptions>}, <callback>)
+```
+
+<source> may take the following values:
+- A local file path
+- An array of local file paths
+- A glob
+- An array of globs
+
+<destination> may take the following values:
+- A local file path
+- A local directory path
+- A function
+
+
 Feed it an array of objects, each containing ``src`` and ``dest`` attributes with file paths (directories will be supported, eventually) and some sort of callback function:
 ```javascript
 mcopy([{src: '/path/to/source.file', dest: '/path/to/destination.file'}, ...], (err) => {
