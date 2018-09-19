@@ -25,17 +25,17 @@ mcopy('/path/to/source/dir/**', '/path/to/dest/dir', (err) => {
 Single copy job syntax:
 ```javascript
 // Shorthand
-mcopy(<source>, <destination>, {...<options>}, <callback>)
+mcopy(<source>, <destination>, {...<options>}, <callback>);
 // Verbose
-mcopy({"src": <source>, "dest": <destination>, ...<options>}, <callback>)
+mcopy({"src": <source>, "dest": <destination>}, {...<options>}, <callback>);
 ```
 
 Multiple copy jobs syntax:
 ```javascript
 // Shorthand
-mcopy([[<source>, <destination>, {...<jobOptions>}], ...], {...<globalOptions>}, <callback>)
+mcopy([[<source>, <destination>], ...], {...<options>}, <callback>);
 // Verbose
-mcopy([{"src": <source>, "dest": <destination>, ...<jobOptions>}, ...], {...<globalOptions>}, <callback>)
+mcopy([{"src": <source>, "dest": <destination>}, ...], {...<options>}, <callback>);
 ```
 
 <source> may take the following values:
