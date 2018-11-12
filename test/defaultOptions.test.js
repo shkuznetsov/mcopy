@@ -22,6 +22,7 @@ test("should default if parameter is missing", () => {
 	expect(opt.deleteSource).toEqual(false);
 	expect(opt.parallel).toEqual(1);
 	expect(opt.globOpt.silent).toEqual(true);
+	expect(opt.globOpt.nodir).toEqual(true);
 });
 
 test("should deep-default objects", () => {
@@ -30,9 +31,10 @@ test("should deep-default objects", () => {
 	});
 	expect(opt.globOpt.silent).toEqual(true);
 	expect(opt.globOpt.opt).toEqual(1);
+	expect(opt.globOpt.nodir).toEqual(true);
 });
 
-test("should default if integer parameter is wrong value", () => {
+test("should default if a value supplied is wrong type", () => {
 	let opt = defaultOptions({
 		parallel: -1,
 		highWaterMark: 0,
@@ -40,5 +42,11 @@ test("should default if integer parameter is wrong value", () => {
 	});
 	expect(opt.parallel).toEqual(1);
 	expect(opt.highWaterMark).toEqual(4194304);
-	expect(opt.globOpt).toEqual({silent: true});
+	expect(opt.globOpt.silent).toEqual(true);
+	expect(opt.globOpt.nodir).toEqual(true);
+});
+
+test("should not allow overriding the 'always' value", () => {
+	let opt = defaultOptions({globOpt: {nodir: false}});
+	expect(opt.globOpt.nodir).toEqual(true);
 });
