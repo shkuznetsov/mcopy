@@ -16,26 +16,6 @@ module.exports = function () {
 	// Parse and sanitise inputs
 	let {jobs, opt, callback} = parseArguments(arguments);
 
-
-
-
-		opt = defaults(optArg, {
-			files: filesArg,
-			dest: destArg,
-			callback: callbackArg,
-			deleteSource: false,
-			createDir: true,
-			overwrite: false,
-			failOnError: true,
-			autoStart: true,
-			parallel: 1,
-			highWaterMark: 4194304, // 4M
-			globOpt: {}
-		});
-
-		opt.globOpt = defaults(opt.globOpt, {silent: true});
-		opt.globOpt.nodir = true;
-
 		mg = new Machinegun({
 			barrels: opt.parallel,
 			giveUpOnError: opt.failOnError,
