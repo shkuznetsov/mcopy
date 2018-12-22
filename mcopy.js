@@ -1,49 +1,82 @@
 'use strict';
 
 const defaults = require('defaults'),
-    Machinegun = require('../machinegun/index.js'),
+    Machinegun = require('./lib/Machinegun.js'),
     File = require('./lib/File.js'),
-    ProgressEmitter = require('./lib/ProgressEmitter'),
-	parseArguments = require('./lib/parseArguments');
+    ProgressEmitter = require('./lib/ProgressEmitter.js'),
+	parseArguments = require('./lib/parseArguments.js');
 
 module.exports = function () {
-
-	let mg, errored;
-
 	// This will be returned
 	const emitter = new ProgressEmitter();
-
 	// Parse and sanitise inputs
 	let {jobs, opt, callback} = parseArguments(arguments);
+	// Main worker function, returns a promise
+	const promise = main(jobs, opt, emitter);
+	// Invoke the callback
+	if (callback) promise.then((value) => callback(null, value), error => callback(error));
+	// Bind the promise getter
+	emitter.promise = () => promise;
+	// Return the chainable emitter
+	return emitter;
+};
 
-		mg = new Machinegun({
-			barrels: opt.parallel,
-			giveUpOnError: opt.failOnError,
-			ceaseFireOnEmpty: true,
-			fireImmediately: false
-		});
+async function main (jobs, opt, emitter) {
+	const machinegun = new Machinegun(opt);
+	let files = await jobsToFiles(jobs, opt, machinegun);
+	let deduped = dedupFiles(files);
+	return await copyFiles(deduped, opt, machinegun);
+}
 
-		mg.on('error', (err) => {
-			if (!opt.failOnError) {
-				emitter.emit('error', err);
-				errored = true;
-			}
-		});
+function jobsToFiles (jobs, opt, machinegun) {
+	let files = [];
+	// Load up the machinegun with Jobs-to-Files conversion tasks
+	jobs.forEach((job) => machinegun.load(async () => files.push(...await job.toFiles(opt))));
+	// Fire the machinegun and return the promise resolving to the files list
+	return machinegun.fire().promise(files);
+}
 
-		resolve(opt.files.map((file) => File.createFromArgument(file, opt, emitter)));
+
+
+	// Init the machinegun
+	let mg = new Machinegun({
+		barrels: opt.parallel,
+		giveUpOnError: opt.stopOnError,
+		ceaseFireOnEmpty: true,
+		fireImmediately: false
 	});
 
-	const resolveGlobs = (inputFiles) => {
-		const resolvedFiles = [];
-		inputFiles.forEach((file) => mg.load(() => file.resolveGlob().then((files) => Array.prototype.push.apply(resolvedFiles, files))));
-		return mg.fire().promise(resolvedFiles);
-	};
+	mg.on('error', (err) => {
+		if (!opt.failOnError) {
+			emitter.emit('error', err);
+			errored = true;
+		}
+	});
 
-	const statFiles = (inputFiles) => {
-		const statFiles = [];
-		inputFiles.forEach((file) => mg.load(() => file.stat().then((file) => statFiles.push(file))));
-		return mg.fire().promise(statFiles);
-	};
+
+
+	function dedupFiles (files) {
+		let bySrc = {}, byDest = {};
+		files.forEach((file) => {
+			// Is it a source duplicate?
+			if (!bySrc[file.src]) {
+				// Only add it if wasn't a complete duplicate
+				if (file.dest != bySrc[file.src][0].dest) {
+					bySrc[file.src].push(file);
+				}
+			} else {
+				// Create the first entry
+				bySrc[file.src] = [file];
+			}
+			// Is it a destination duplicate?
+			if (byDest[file.dest]) {
+				// TODO: Fail with destination duplicate error
+			} else {
+				byDest[file.dest] = true;
+			}
+		});
+		return bySrc;
+	}
 
 	const copyFiles = (inputFiles) => {
 		inputFiles.forEach((file) => mg.load(() => {
@@ -64,11 +97,7 @@ module.exports = function () {
 		if (typeof opt.callback == 'function') opt.callback(err);
 	};
 
-	parseInput(arguments)
-		.then(resolveGlobs)
-		.then(statFiles)
-		.then(copyFiles)
-		.then(reportComplete, reportComplete);
+
 
 	return emitter;
 };
