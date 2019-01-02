@@ -1,9 +1,9 @@
 'use strict';
 
 const defaults = require('defaults'),
-    Machinegun = require('./lib/Machinegun.js'),
-    File = require('./lib/File.js'),
-    ProgressEmitter = require('./lib/ProgressEmitter.js'),
+	MCMachinegun = require('./lib/MCMachinegun.js'),
+	File = require('./lib/File.js'),
+	ProgressEmitter = require('./lib/ProgressEmitter.js'),
 	parseArguments = require('./lib/parseArguments.js');
 
 module.exports = function () {
@@ -14,7 +14,7 @@ module.exports = function () {
 	// Main worker function, returns a promise
 	const promise = main(jobs, opt, emitter);
 	// Invoke the callback
-	if (callback) promise.then((value) => callback(null, value), error => callback(error));
+	if (callback) promise.then(value => callback(null, value), error => callback(error));
 	// Bind the promise getter
 	emitter.promise = () => promise;
 	// Return the chainable emitter
@@ -22,7 +22,7 @@ module.exports = function () {
 };
 
 async function main (jobs, opt, emitter) {
-	const machinegun = new Machinegun(opt);
+	const machinegun = new MCMachinegun(opt, emitter);
 	let files = await jobsToFiles(jobs, opt, machinegun);
 	let deduped = dedupFiles(files);
 	return await copyFiles(deduped, opt, machinegun);
@@ -36,47 +36,23 @@ function jobsToFiles (jobs, opt, machinegun) {
 	return machinegun.fire().promise(files);
 }
 
-
-
-	// Init the machinegun
-	let mg = new Machinegun({
-		barrels: opt.parallel,
-		giveUpOnError: opt.stopOnError,
-		ceaseFireOnEmpty: true,
-		fireImmediately: false
-	});
-
-	mg.on('error', (err) => {
-		if (!opt.failOnError) {
-			emitter.emit('error', err);
-			errored = true;
+function dedupFiles (files) {
+	let bySrc = {}, byDest = {};
+	files.forEach((file) => {
+		// Is it a source duplicate?
+		if (!bySrc[file.src]) {
+			// Only add it if wasn't a complete duplicate
+			if (file.dest != bySrc[file.src][0].dest) bySrc[file.src].push(file);
+		} else bySrc[file.src] = [file];
+		// Is it a destination duplicate?
+		if (byDest[file.dest]) {
+			// TODO: Fail with destination duplicate error
+		} else {
+			byDest[file.dest] = true;
 		}
 	});
-
-
-
-	function dedupFiles (files) {
-		let bySrc = {}, byDest = {};
-		files.forEach((file) => {
-			// Is it a source duplicate?
-			if (!bySrc[file.src]) {
-				// Only add it if wasn't a complete duplicate
-				if (file.dest != bySrc[file.src][0].dest) {
-					bySrc[file.src].push(file);
-				}
-			} else {
-				// Create the first entry
-				bySrc[file.src] = [file];
-			}
-			// Is it a destination duplicate?
-			if (byDest[file.dest]) {
-				// TODO: Fail with destination duplicate error
-			} else {
-				byDest[file.dest] = true;
-			}
-		});
-		return bySrc;
-	}
+	return bySrc;
+}
 
 	const copyFiles = (inputFiles) => {
 		inputFiles.forEach((file) => mg.load(() => {
