@@ -4,13 +4,19 @@ const defaults = require('defaults'),
 	MCMachinegun = require('./lib/MCMachinegun.js'),
 	File = require('./lib/File.js'),
 	ProgressEmitter = require('./lib/ProgressEmitter.js'),
-	parseArguments = require('./lib/parseArguments.js');
+	defaultOptions = require('./lib/defaultOptions');
 
-module.exports = function () {
+module.exports = function (...args) {
+	let jobs, opt, callback;
+	// Was this a multi-job call?
+	if (Array.isArray(args[0]) && typeof args[0][0] !== 'string') jobs = args.shift();
+	else jobs = [[args.shift(), args.shift()]];
+	// Is the next argument - opt?
+	if (typeof args[0] === 'object') opt = defaultOptions(args.shift());
+	// Is the next argument - callback?
+	if (typeof args[0] === 'function') callback = args[0];
 	// This will be returned
 	const emitter = new ProgressEmitter();
-	// Parse and sanitise inputs
-	let {jobs, opt, callback} = parseArguments(arguments);
 	// Main worker function, returns a promise
 	const promise = main(jobs, opt, emitter);
 	// Invoke the callback
@@ -40,10 +46,14 @@ function dedupFiles (files) {
 	let bySrc = {}, byDest = {};
 	files.forEach((file) => {
 		// Is it a source duplicate?
-		if (!bySrc[file.src]) {
-			// Only add it if wasn't a complete duplicate
-			if (file.dest != bySrc[file.src][0].dest) bySrc[file.src].push(file);
-		} else bySrc[file.src] = [file];
+		if (bySrc[file.src]) {
+			// Return if this is a complete duplicate of an existing file
+			for(let i in bySrc[file.src]) if (bySrc[file.src][i].dest == file.dest) return;
+			// ... or if not, add it in
+			bySrc[file.src].push(file);
+		} else {
+			bySrc[file.src] = [file];
+		}
 		// Is it a destination duplicate?
 		if (byDest[file.dest]) {
 			// TODO: Fail with destination duplicate error
@@ -77,3 +87,15 @@ function dedupFiles (files) {
 
 	return emitter;
 };
+
+/*
+Parse inputs >>
+	CopyJob_PhaseZero: [array of globs] => string|function
+Resolve globs >>
+	CopyJob_PhaseOne: string+stat => string|function
+Resolve destinations >>
+	CopyJob_PhaseTwo: string+stat => string
+Deduplicate and combine sources >>
+	CopyJob_PhaseThree: string+stat => [array of strings]
+
+ */
