@@ -1,12 +1,14 @@
 'use strict';
 
-const defaults = require('defaults'),
-	MCMachinegun = require('./lib/MCMachinegun.js'),
-	File = require('./lib/File.js'),
-	ProgressEmitter = require('./lib/ProgressEmitter.js'),
-	defaultOptions = require('./lib/defaultOptions');
+import {defaultOptions} from './lib/defaultOptions';
+import {jobsFactory} from './lib/JobsAndCollections';
 
-module.exports = function (...args) {
+const
+	ProgressEmitter = require('./lib/ProgressEmitter.js');
+
+module.exports = function () {
+
+	// Inputs parsing
 	let jobs, opt, callback;
 	// Was this a multi-job call?
 	if (Array.isArray(args[0]) && typeof args[0][0] !== 'string') jobs = args.shift();
@@ -15,10 +17,14 @@ module.exports = function (...args) {
 	if (typeof args[0] === 'object') opt = defaultOptions(args.shift());
 	// Is the next argument - callback?
 	if (typeof args[0] === 'function') callback = args[0];
+
 	// This will be returned
-	const emitter = new ProgressEmitter();
-	// Main worker function, returns a promise
-	const promise = main(jobs, opt, emitter);
+	let emitter = new ProgressEmitter();
+
+	let jobsCollection = new JobsCollection(jobs, opt, emitter);
+
+	let promise = jobsCollection.run();
+
 	// Invoke the callback
 	if (callback) promise.then(value => callback(null, value), error => callback(error));
 	// Bind the promise getter
@@ -27,12 +33,9 @@ module.exports = function (...args) {
 	return emitter;
 };
 
-async function main (jobs, opt, emitter) {
-	const machinegun = new MCMachinegun(opt, emitter);
-	let files = await jobsToFiles(jobs, opt, machinegun);
-	let deduped = dedupFiles(files);
-	return await copyFiles(deduped, opt, machinegun);
-}
+
+
+
 
 function jobsToFiles (jobs, opt, machinegun) {
 	let files = [];

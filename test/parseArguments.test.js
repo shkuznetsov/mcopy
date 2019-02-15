@@ -1,5 +1,5 @@
 const parseArguments = require('../lib/parseArguments');
-const CopyJob = require('../lib/CopyJob');
+const CopyJob = require('../lib/CopyJob_PhaseZero');
 
 const run = function () { return parseArguments(arguments); };
 const func = () => {};
