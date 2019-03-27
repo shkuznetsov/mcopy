@@ -1,27 +1,35 @@
 'use strict';
 
+const parseArguments = require('./lib/parseArguments');
 const defaultOptions = require('./lib/defaultOptions');
 const InputCollection = require('./lib/InputCollection');
 
-const
-	ProgressEmitter = require('./lib/ProgressEmitter.js');
-
 module.exports = function (...args) {
-	// Inputs parsing
-	let jobs, opt, callback;
-	// Was this a multi-job call?
-	if (Array.isArray(args[0]) && typeof args[0][0] !== 'string') jobs = args.shift();
-	else jobs = [[args.shift(), args.shift()]];
-	// Is the next argument - opt?
-	if (typeof args[0] === 'object') opt = defaultOptions(args.shift());
-	else opt = defaultOptions();
-	// Is the next argument - callback?
-	if (typeof args[0] === 'function') callback = args[0];
 
+	let {jobs, opt, callback} = parseArguments(args);
+
+	opt = defaultOptions(opt);
+
+	let emitter = new Events();
+
+	let worker = new InputCollection(opt, emitter);
+
+	jobs.forEach((job) => worker.addJob(job));
+
+	let promise = worker.run();
+
+	emitter.promise = () => promise;
+
+	return emitter;
+};
+
+
+{
+	// Parse inputs
+	let {jobs, opt, callback} = parseArguments(args);
 	// This will be returned
 	let emitter = new ProgressEmitter();
 
-	let jobsCollection = new InputCollection(jobs, opt, emitter);
 
 	let promise = jobsCollection.run();
 
