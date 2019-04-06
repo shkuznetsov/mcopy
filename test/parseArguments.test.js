@@ -1,73 +1,54 @@
+const cartesian = require('cartesian');
 const parseArguments = require('../lib/parseArguments');
-const CopyJob = require('../lib/CopyJob_PhaseZero');
 
-const run = function () { return parseArguments(arguments); };
-const func = () => {};
-
-const assertCopyJob = (job, src, dest) => {
-	expect(job).toBeInstanceOf(CopyJob);
-	expect(job.src).toEqual(src);
-	expect(job.dest).toBe(dest);
-};
-
-test("should support single-job shorthand syntax", () => {
-	let {jobs, opt, callback} = run('src', 'dest', {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src'], 'dest');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
+const combinations = cartesian({
+	multipleJobs: [true, false],
+	shorthandSyntax: [true, false],
+	srcArray: [true, false],
+	destFunction: [true, false],
+	optExists: [true, false],
+	callbackExists: [true, false]
 });
 
-test("should support single-job verbose syntax", () => {
-	let {jobs, opt, callback} = run({src: 'src', dest: 'dest'}, {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src'], 'dest');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+const fxSrcs = ['s1', 's2', 's3', 's4'];
+const fxDestStrings = ['d1', 'd2'];
+const fxDestFunctions = [() => {}, () => {}];
+const fxOpt = {};
+const fxCallback = () => {};
 
-test("should support multi-job shorthand syntax", () => {
-	let {jobs, opt, callback} = run([['src1', 'dest1'], ['src2', 'dest2']], {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src1'], 'dest1');
-	assertCopyJob(jobs[1], ['src2'], 'dest2');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+combinations.forEach((param) => test(JSON.stringify(param), () => {
 
-test("should support multi-job verbose syntax", () => {
-	let {jobs, opt, callback} = run([{src: 'src1', dest: 'dest1'}, {src: 'src2', dest: 'dest2'}], {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src1'], 'dest1');
-	assertCopyJob(jobs[1], ['src2'], 'dest2');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+	let fxSrc = (n) => param.srcArray ? [fxSrcs[n*2], fxSrcs[n*2 + 1]] : fxSrcs[n];
+	let fxDest = (n) => param.destFunction ? fxDestFunctions[n] : fxDestStrings[n];
 
-test("should support array as a source in a single-job", () => {
-	let {jobs, opt, callback} = run(['src1', 'src2'], 'dest', {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src1', 'src2'], 'dest');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+	let createJob = (n) => {
+		let src = fxSrc(n);
+		let dest = fxDest(n);
+		return param.shorthandSyntax ? [src, dest] : {src, dest};
+	};
 
-test("should support array as a source in a multi-job", () => {
-	let {jobs, opt, callback} = run([[['src11', 'src12'], 'dest1'], [['src21', 'src22'], 'dest2']], {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src11', 'src12'], 'dest1');
-	assertCopyJob(jobs[1], ['src21', 'src22'], 'dest2');
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+	let assertJob = (n, job) => {
+		let src = param.shorthandSyntax ? job[0] : job.src;
+		let dest = param.shorthandSyntax ? job[1] : job.dest;
+		expect(src).toEqual(fxSrc(n));
+		expect(dest).toBe(fxDest(n));
+	};
 
-test("should support function as a destination", () => {
-	let {jobs, opt, callback} = run('src', func, {parallel: 3}, func);
-	assertCopyJob(jobs[0], ['src'], func);
-	expect(opt.parallel).toEqual(3);
-	expect(callback).toBe(func);
-});
+	let args;
 
-test("should support callback without options in a single-job", () => {
-	let {jobs, opt, callback} = run('src', 'dest', func);
-	expect(callback).toBe(func);
-});
+	if (param.multipleJobs) args = [[createJob(0), createJob(1)]];
+	else if (param.shorthandSyntax) args = createJob(0);
+	else args = [createJob(0)];
 
-test("should support callback without options in a multi-job", () => {
-	let {jobs, opt, callback} = run([['src', 'dest'], ['src', 'dest']], func);
-	expect(callback).toBe(func);
-});
+	if (param.optExists) args.push(fxOpt);
+	if (param.callbackExists) args.push(fxCallback);
+	let {jobs, opt, callback} = parseArguments(args);
+
+	expect(Array.isArray(jobs)).toBe(true);
+	expect(jobs.length).toEqual(param.multipleJobs ? 2 : 1);
+	assertJob(0, jobs[0]);
+	if (param.multipleJobs) assertJob(1, jobs[1]);
+	if (param.optExists) expect(opt).toBe(fxOpt);
+	if (param.callbackExists) expect(callback).toBe(fxCallback);
+
+}));
