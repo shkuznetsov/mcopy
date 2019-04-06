@@ -22,21 +22,3 @@ module.exports = function (...args) {
 
 	return emitter;
 };
-
-
-{
-	// Parse inputs
-	let {jobs, opt, callback} = parseArguments(args);
-	// This will be returned
-	let emitter = new ProgressEmitter();
-
-
-	let promise = jobsCollection.run();
-
-	// Invoke the callback
-	if (callback) promise.then(value => callback(null, value), error => callback(error));
-	// Bind the promise getter
-	emitter.promise = () => promise;
-	// Return the chainable emitter
-	return emitter;
-};
