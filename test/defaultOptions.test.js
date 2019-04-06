@@ -1,19 +1,24 @@
 const defaultOptions = require('../lib/defaultOptions');
 
+const assertGlobOpt = (opt) => {
+	expect(opt.globOpt.unique).toEqual(true);
+	expect(opt.globOpt.onlyFiles).toEqual(true);
+	expect(opt.globOpt.stats).toEqual(true);
+};
+
 test("should use supplied value", () => {
 	let opt = defaultOptions({
 		createDir: false,
 		deleteSource: true,
 		parallel: 3,
 		highWaterMark: 1024,
-		globOpt: {silent: false, opt: 1}
+		globOpt: {testOpt: 1}
 	});
 	expect(opt.createDir).toEqual(false);
 	expect(opt.deleteSource).toEqual(true);
 	expect(opt.parallel).toEqual(3);
-	expect(opt.highWaterMark).toEqual(1024);
-	expect(opt.globOpt.silent).toEqual(false);
-	expect(opt.globOpt.opt).toEqual(1);
+	expect(opt.globOpt.testOpt).toEqual(1);
+	assertGlobOpt(opt);
 });
 
 test("should default if parameter is missing", () => {
@@ -21,17 +26,15 @@ test("should default if parameter is missing", () => {
 	expect(opt.createDir).toEqual(true);
 	expect(opt.deleteSource).toEqual(false);
 	expect(opt.parallel).toEqual(1);
-	expect(opt.globOpt.silent).toEqual(true);
-	expect(opt.globOpt.nodir).toEqual(true);
+	assertGlobOpt(opt);
 });
 
 test("should deep-default objects", () => {
 	let opt = defaultOptions({
-		globOpt: {opt: 1}
+		globOpt: {testOpt: 1}
 	});
-	expect(opt.globOpt.silent).toEqual(true);
-	expect(opt.globOpt.opt).toEqual(1);
-	expect(opt.globOpt.nodir).toEqual(true);
+	expect(opt.globOpt.testOpt).toEqual(1);
+	assertGlobOpt(opt);
 });
 
 test("should default if a value supplied is wrong type", () => {
@@ -42,11 +45,16 @@ test("should default if a value supplied is wrong type", () => {
 	});
 	expect(opt.parallel).toEqual(1);
 	expect(opt.highWaterMark).toEqual(4194304);
-	expect(opt.globOpt.silent).toEqual(true);
-	expect(opt.globOpt.nodir).toEqual(true);
+	assertGlobOpt(opt);
 });
 
 test("should not allow overriding the 'always' value", () => {
-	let opt = defaultOptions({globOpt: {nodir: false}});
-	expect(opt.globOpt.nodir).toEqual(true);
+	let opt = defaultOptions({
+		globOpt: {
+			unique: false,
+			onlyFiles: false,
+			stats: false
+		}
+	});
+	assertGlobOpt(opt);
 });
