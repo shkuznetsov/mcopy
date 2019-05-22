@@ -4,7 +4,9 @@ const Events = require('events');
 
 const parseArguments = require('./lib/parseArguments');
 const defaultOptions = require('./lib/defaultOptions');
-const JobsCollection = require('./lib/ResolveSourcesCollection');
+const ResolveSourcesCollection = require('./lib/ResolveSourcesCollection');
+const ResolveDestinationsCollection = require('./lib/ResolveDestinationsCollection');
+const CopyCollection = require('./lib/CopyCollection');
 
 module.exports = function (...args) {
 	// Parse and sanitise the inputs
@@ -12,12 +14,16 @@ module.exports = function (...args) {
 	opt = defaultOptions(opt);
 	// This will eventually be returned
 	let api = new Events();
-	// Create a collection of copy jobs
-	let collection = new JobsCollection(jobs, opt, api);
+	// Create job collections
+	let sourcesCollection = new ResolveSourcesCollection(opt, api);
+	let destinationsCollection = new ResolveDestinationsCollection(opt, api);
+	let copyCollection = new CopyCollection(opt, api);
+	// Chain the collections
+	sourcesCollection.chain(destinationsCollection).chain(copyCollection);
+	// Prime the first collection with the input jobs
+	sourcesCollection.addJobs(jobs);
 	// run() the collection automatically...
-	if (opt.autoStart) {
-		api.promise = collection.run();
-	}
+	if (opt.autoStart) api.promise = sourcesCollection.run();
 	// ...or add an API method to run() it manually
 	else {
 		// Intentionally use Deferred anti-pattern
@@ -27,7 +33,7 @@ module.exports = function (...args) {
 			reject = rj;
 		});
 		api.run = () => {
-			collection.run().then(resolve, reject);
+			sourcesCollection.run().then(resolve, reject);
 			return api.promise;
 		};
 	}
@@ -38,3 +44,4 @@ module.exports = function (...args) {
 	// Return created API object
 	return api;
 };
+
