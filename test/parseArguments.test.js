@@ -50,5 +50,4 @@ combinations.forEach((param) => test(JSON.stringify(param), () => {
 	if (param.multipleJobs) assertJob(1, jobs[1]);
 	if (param.optExists) expect(opt).toBe(fxOpt);
 	if (param.callbackExists) expect(callback).toBe(fxCallback);
-
 }));
