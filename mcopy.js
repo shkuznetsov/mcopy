@@ -20,8 +20,6 @@ module.exports = function (...args) {
 	let copyCollection = new CopyCollection(opt, api);
 	// Chain the collections
 	sourcesCollection.chain(destinationsCollection).chain(copyCollection);
-	// Prime the first collection with the input jobs
-	sourcesCollection.addJobs(jobs);
 	// run() the collection automatically...
 	if (opt.autoStart) api.promise = sourcesCollection.run();
 	// ...or add an API method to run() it manually
@@ -44,4 +42,5 @@ module.exports = function (...args) {
 	// Return created API object
 	return api;
 };
-
+	// Prime the sourcesCollection with the input jobs
+	jobs.forEach((job) => sourcesCollection.seedJob(job));
