@@ -6,15 +6,13 @@ const combinations = cartesian({
 	shorthandSyntax: [true, false],
 	srcArray: [true, false],
 	destFunction: [true, false],
-	optExists: [true, false],
-	callbackExists: [true, false]
+	optExists: [true, false]
 });
 
 const fxSrcs = ['s1', 's2', 's3', 's4'];
 const fxDestStrings = ['d1', 'd2'];
 const fxDestFunctions = [() => {}, () => {}];
 const fxOpt = {};
-const fxCallback = () => {};
 
 combinations.forEach((param) => test(JSON.stringify(param), () => {
 
@@ -41,7 +39,6 @@ combinations.forEach((param) => test(JSON.stringify(param), () => {
 	else args = [createJob(0)];
 
 	if (param.optExists) args.push(fxOpt);
-	if (param.callbackExists) args.push(fxCallback);
 	let {jobs, opt, callback} = parseArguments(args);
 
 	expect(Array.isArray(jobs)).toBe(true);
@@ -49,5 +46,4 @@ combinations.forEach((param) => test(JSON.stringify(param), () => {
 	assertJob(0, jobs[0]);
 	if (param.multipleJobs) assertJob(1, jobs[1]);
 	if (param.optExists) expect(opt).toBe(fxOpt);
-	if (param.callbackExists) expect(callback).toBe(fxCallback);
 }));
