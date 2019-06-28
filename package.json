@@ -22,13 +22,14 @@
   ],
   "main": "./mcopy.js",
   "devDependencies": {
-    "jest": "^24.1.0",
-    "rimraf": "^2.5.1"
+    "cartesian": "^1.0.1",
+    "filenamify": "^4.1.0",
+    "jest": "^24.8.0",
+    "rimraf": "^2.6.3"
   },
   "dependencies": {
-    "cartesian": "^1.0.1",
-    "fast-glob": "^2.2.6",
-    "machinegun": "^0.2.0"
+    "fast-glob": "^3.0.3",
+    "mkdirp": "^0.5.1"
   },
   "scripts": {
     "test": "jest"
