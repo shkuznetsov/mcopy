@@ -3,7 +3,7 @@ const defaultOptions = require('../lib/defaultOptions');
 const assertGlobOpt = (opt) => {
 	expect(opt.globOpt.unique).toEqual(true);
 	expect(opt.globOpt.onlyFiles).toEqual(true);
-	expect(opt.globOpt.stats).toEqual(true);
+	expect(opt.globOpt.objectMode).toEqual(true);
 };
 
 test("should use supplied value", () => {
@@ -53,7 +53,7 @@ test("should not allow overriding the 'always' value", () => {
 		globOpt: {
 			unique: false,
 			onlyFiles: false,
-			stats: false
+			objectMode: false
 		}
 	});
 	assertGlobOpt(opt);
