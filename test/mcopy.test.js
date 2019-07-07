@@ -30,10 +30,14 @@ async function createFile (...args) {
 	return filePath;
 }
 
-async function assertFile (...args) {
+async function assertFileExists (...args) {
 	let fileSize = (typeof args[args.length - 1] === 'number') ? args.pop() : DEFAULT_FILE_SIZE;
 	let s = await stat(join(...args));
 	expect(s.size).toBe(fileSize);
+}
+
+async function assertFileDoesntExist (...args) {
+	await expect(stat(join(...args))).rejects.toThrow();
 }
 
 async function it (name, fn) {
@@ -47,11 +51,30 @@ async function it (name, fn) {
 	});
 }
 
+describe('Test helpers', () => {
+	it('Should create a file', async (src, dest) => {
+		let srcFile = await createFile(src, 'test.dat');
+		await assertFileExists(src, 'test.dat');
+		await assertFileDoesntExist(dest, 'test.dat');
+	});
+});
+
 describe('Handpicked manual tests', () => {
 	it('Should copy one file', async (src, dest) => {
 		let srcFile = await createFile(src, 'test.dat');
 		await mcopy(srcFile, dest).run();
-		await assertFile(dest, 'test.dat');
+		await assertFileExists(dest, 'test.dat');
+	});
+	it('Should copy one file to multiple destinations and delete the source', async (src, dest) => {
+		let srcFile = await createFile(src, 'test.dat');
+		let opt = {
+			deleteSource: true,
+			createDir: true
+		};
+		await mcopy(srcFile, [join(dest, 'd1'), join(dest, 'd2')], opt).run();
+		await assertFileExists(dest, 'd1', 'test.dat');
+		await assertFileExists(dest, 'd2', 'test.dat');
+		await assertFileDoesntExist(src, 'test.dat');
 	});
 });
 
@@ -59,7 +82,7 @@ describe('Target directories creation', () => {
 	it('Should create dir', async (src, dest) => {
 		let srcFile = await createFile(src, 'test.dat');
 		await mcopy(srcFile, join(dest, 'subfolder'), {createDir: true}).run();
-		await assertFile(dest, 'subfolder', 'test.dat');
+		await assertFileExists(dest, 'subfolder', 'test.dat');
 	});
 	it('Should fail if no dir exists', async (src, dest) => {
 		let srcFile = await createFile(src, 'test.dat');

@@ -12,11 +12,13 @@ test("should use supplied value", () => {
 		deleteSource: true,
 		concurrency: 3,
 		highWaterMark: 1024,
+		testOpt: 1,
 		globOpt: {testOpt: 1}
 	});
 	expect(opt.createDir).toEqual(false);
 	expect(opt.deleteSource).toEqual(true);
 	expect(opt.concurrency).toEqual(3);
+	expect(opt.testOpt).toEqual(1);
 	expect(opt.globOpt.testOpt).toEqual(1);
 	assertGlobOpt(opt);
 });
