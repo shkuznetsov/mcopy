@@ -22,14 +22,13 @@
   ],
   "main": "./mcopy.js",
   "devDependencies": {
-    "cartesian": "^1.0.1",
-    "filenamify": "^4.1.0",
+    "cartesian-mutable": "0.0.4",
     "jest": "^24.8.0",
     "normalize-path": "^3.0.0",
     "rimraf": "^2.6.3"
   },
   "dependencies": {
-    "fast-glob": "^3.0.3",
+    "fast-glob": "^3.0.4",
     "mkdirp": "^0.5.1"
   },
   "scripts": {

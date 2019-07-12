@@ -1,6 +1,5 @@
-const cartesian = require('cartesian');
-const filenamify = require('filenamify');
-const posixify = require('normalize-path');
+const cartesian = require('cartesian-mutable');
+const normalisePath = require('normalize-path');
 const util = require('util');
 const path = require('path');
 const fs = require('fs');
@@ -19,7 +18,7 @@ beforeAll(() => mkdirp(FIXTURES_DIR));
 afterAll(() => rimraf(FIXTURES_DIR));
 
 function join(...args) {
-	return posixify(path.join(...args));
+	return normalisePath(path.join(...args));
 }
 
 async function createFile (...args) {
@@ -42,9 +41,8 @@ async function assertFileDoesntExist (...args) {
 
 async function it (name, fn) {
 	test(name, async () => {
-		let testDir = filenamify(name);
-		let src = join(FIXTURES_DIR, testDir, 'src');
-		let dest = join(FIXTURES_DIR, testDir, 'dest');
+		let src = join(FIXTURES_DIR, name, 'src');
+		let dest = join(FIXTURES_DIR, name, 'dest');
 		await mkdirp(src);
 		await mkdirp(dest);
 		return fn(src, dest);
@@ -94,9 +92,70 @@ describe('Target directories creation', () => {
 describe('Cartesian-based automated bashing', () => {
 	const combinations = cartesian({
 		multipleJobs: [true, false],
-		srcIsArray: [true, false],
+		jobIsArray: [true, false],
 		srcIsGlob: [true, false],
+		srcIsArray: [true, false],
+		srcGlobNested: (v) => (v.srcIsGlob && v.srcIsArray) ? [true, false] : undefined,
+		srcGlobNegated: (v) => (v.srcIsGlob && v.srcIsArray) ? [true, false] : undefined,
 		destIsFunction: [true, false],
-		optExists: [true, false]
+		destFuncAsync: (v) => v.destIsFunction ? [true, false] : undefined,
+		destIsArray: [true, false],
+		optCreateDir: [true, false]
+	});
+	combinations.forEach((v) => {
+		let testName = JSON.stringify(v)
+			.replace(/[{}]/g, '')
+			.replace(/"/g, '')
+			.replace(/:/g, '=');
+		it(testName, async (src, dest) => {
+			let assertions = [];
+			const prepareCopyJob = async (jobDir) => {
+				let files = [];
+				const addSrcFile = async (...args) => {
+					let exists = !args[0] ? args.shift() : true;
+					await createFile(src, jobDir, ...args);
+					files.push({name: args.pop(), exists});
+				};
+				const addDestDir = async (...args) => {
+					let destDir = join(dest, jobDir, ...args);
+					if (!v.optCreateDir) await mkdirp(destDir);
+					files.forEach((file) => assertions.push({path: join(destDir, file.name), exists: file.exists}));
+					return destDir;
+				};
+				// Prepare files
+				await addSrcFile('one.dat');
+				if (v.srcIsGlob) await addSrcFile('two.dat');
+				if (v.srcIsArray) await addSrcFile('three.doo');
+				if (v.srcGlobNested) await addSrcFile('sub', 'nested.dat');
+				if (v.srcGlobNegated) await addSrcFile(false, 'notthisone.dat');
+				// Prepare source parameter
+				let source = join(src, jobDir, v.srcIsGlob ? '**/*.dat' : 'one.dat');
+				if (v.srcIsArray) source = [source, join(src, jobDir, v.srcIsGlob ? '*.doo' : 'three.doo')];
+				if (v.srcGlobNegated) source.push('!' + join(src, jobDir, 'notthisone.*'));
+				// Prepare destination parameter
+				let destDirs, destination;
+				if (v.destIsArray) destDirs = [await addDestDir('dest dir one'), await addDestDir('dest dir two')];
+				else destDirs = await addDestDir('dest dir only');
+				if (!v.destIsFunction) destination = destDirs;
+				else if (v.destFuncAsync) destination = () => Promise.resolve(destDirs);
+				else destination = () => destDirs;
+				// Return
+				return v.jobIsArray ? [source, destination] : {src: source, dest: destination};
+			};
+			// Prepare opt
+			let opt = {
+				createDir: v.optCreateDir
+			};
+			// Start jobs
+			let job = await prepareCopyJob('source dir');
+			if (v.multipleJobs) await mcopy([job, await prepareCopyJob('another source dir')], opt).run();
+			else if (v.jobIsArray) await mcopy(...job, opt).run();
+			else await mcopy(job, opt).run();
+			// Assert jobs
+			assertions.forEach(async (a) => {
+				if (a.exists) await assertFileExists(a.path);
+				else await assertFileDoesntExist(a.path);
+			});
+		});
 	});
 });

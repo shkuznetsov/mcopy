@@ -1,4 +1,4 @@
-const cartesian = require('cartesian');
+const cartesian = require('cartesian-mutable');
 const parseArguments = require('../lib/parseArguments');
 
 const combinations = cartesian({
